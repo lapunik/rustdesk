@@ -585,13 +585,9 @@ impl Connection {
             crate::rustdesk_interval(time::interval_at(Instant::now(), TEST_DELAY_TIMEOUT));
         let mut last_recv_time = Instant::now();
 
-        conn.stream.set_send_timeout(
-            if conn.file_transfer.is_some() || conn.port_forward_socket.is_some() || conn.terminal {
-                SEND_TIMEOUT_OTHER
-            } else {
-                SEND_TIMEOUT_VIDEO
-            },
-        );
+        // The connection type is not known until the login request arrives;
+        // `on_message` picks the type-specific timeout then.
+        conn.stream.set_send_timeout(SEND_TIMEOUT_VIDEO);
 
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         std::thread::spawn(move || Self::handle_input(_rx_input, tx_cloned));
@@ -640,6 +636,18 @@ impl Connection {
                             conn.file_transferred = false; //seen
                             conn.send_close_reason_no_retry("").await;
                             conn.on_close("connection manager", true).await;
+                            break;
+                        }
+                        // The connection manager's window went away rather than a person
+                        // disconnecting this peer. End the session exactly as above, but do not
+                        // send the manual close reason: it is the one thing that stops the peer
+                        // from retrying, and on a logout the retry is the whole point - it is
+                        // what puts the peer back on the login screen a moment later.
+                        #[cfg(target_os = "linux")]
+                        ipc::Data::CmWindowClosed => {
+                            conn.chat_unanswered = false; // seen
+                            conn.file_transferred = false; //seen
+                            conn.on_close("connection manager window closed", true).await;
                             break;
                         }
                         ipc::Data::CmErr(e) => {
@@ -1200,6 +1208,13 @@ impl Connection {
                         match data {
                             ipc::Data::Close => {
                                 bail!("Close requested from connection manager");
+                            }
+                            // Same end as above: a tunnel must not outlive the window either.
+                            // Only the reason differs, and a port forward carries none - the
+                            // peer sees the tunnel drop and decides for itself.
+                            #[cfg(target_os = "linux")]
+                            ipc::Data::CmWindowClosed => {
+                                bail!("Connection manager window closed");
                             }
                             ipc::Data::CmErr(e) => {
                                 log::error!("Connection manager error: {e}");
@@ -2002,11 +2017,17 @@ impl Connection {
         self.update_scoped_login_options().await;
         if let Some((dir, show_hidden)) = self.file_transfer.clone() {
             self.keyboard = false;
-            let dir = if !dir.is_empty() && std::path::Path::new(&dir).is_dir() {
-                &dir
-            } else {
-                ""
-            };
+            let is_existing_dir = !dir.is_empty() && std::path::Path::new(&dir).is_dir();
+            let is_allowed_dir =
+                is_existing_dir && crate::common::is_peer_path_allowed(&dir, false);
+            #[cfg(target_os = "android")]
+            if is_existing_dir && !is_allowed_dir {
+                log::warn!(
+                    "Use the app workspace because the initial file-transfer directory is outside it: {}",
+                    dir
+                );
+            }
+            let dir = if is_allowed_dir { &dir } else { "" };
             if !wait_session_id_confirm {
                 self.read_dir(dir, show_hidden);
             } else {
@@ -2741,6 +2762,17 @@ impl Connection {
                 }
             }
 
+            self.stream.set_send_timeout(
+                if self.file_transfer.is_some()
+                    || self.terminal
+                    || matches!(self.lr.union, Some(login_request::Union::PortForward(_)))
+                {
+                    SEND_TIMEOUT_OTHER
+                } else {
+                    SEND_TIMEOUT_VIDEO
+                },
+            );
+
             if !crate::common::is_direct_ip_access(&lr.username) && lr.username != Config::get_id()
             {
                 self.send_login_error(crate::client::LOGIN_MSG_OFFLINE)
@@ -3292,6 +3324,81 @@ impl Connection {
                                 self.send(fs::new_error(job_id, "one-way-file-transfer-tip", 0))
                                     .await;
                                 return true;
+                            }
+                        }
+                        // Android is scoped-storage only: reject any peer supplied path that
+                        // escapes the app workspace before it reaches the filesystem.
+                        #[cfg(target_os = "android")]
+                        {
+                            // (path, job id, allow empty) of the peer supplied path this action
+                            // operates on.
+                            let checked: Option<(&str, i32, bool)> = match &fa.union {
+                                Some(file_action::Union::ReadEmptyDirs(rd)) => {
+                                    Some((rd.path.as_str(), -1, false))
+                                }
+                                Some(file_action::Union::ReadDir(rd)) => {
+                                    Some((rd.path.as_str(), 0, true))
+                                }
+                                Some(file_action::Union::AllFiles(f)) => {
+                                    Some((f.path.as_str(), f.id, false))
+                                }
+                                Some(file_action::Union::Send(s)) => {
+                                    // Printer jobs read from memory, `path` is only a lookup key.
+                                    if JobType::from_proto(s.file_type) == JobType::Generic {
+                                        Some((s.path.as_str(), s.id, false))
+                                    } else {
+                                        None
+                                    }
+                                }
+                                Some(file_action::Union::Receive(r)) => {
+                                    Some((r.path.as_str(), r.id, false))
+                                }
+                                Some(file_action::Union::RemoveDir(d)) => {
+                                    Some((d.path.as_str(), d.id, false))
+                                }
+                                Some(file_action::Union::RemoveFile(f)) => {
+                                    Some((f.path.as_str(), f.id, false))
+                                }
+                                Some(file_action::Union::Create(c)) => {
+                                    Some((c.path.as_str(), c.id, false))
+                                }
+                                Some(file_action::Union::Rename(r)) => {
+                                    Some((r.path.as_str(), r.id, false))
+                                }
+                                _ => None,
+                            };
+                            if let Some((path, job_id, allow_empty)) = checked {
+                                if !crate::common::is_peer_path_allowed(path, allow_empty) {
+                                    log::warn!(
+                                        "Reject file action outside the app workspace: {}",
+                                        path
+                                    );
+                                    if job_id >= 0 {
+                                        self.send(fs::new_error(job_id, "Permission denied", -1))
+                                            .await;
+                                    }
+                                    return true;
+                                }
+                            }
+                            if let Some(file_action::Union::Rename(r)) = &fa.union {
+                                let destination = std::path::Path::new(&r.path)
+                                    .parent()
+                                    .map(|parent| parent.join(&r.new_name));
+                                let allowed = destination
+                                    .as_deref()
+                                    .and_then(std::path::Path::to_str)
+                                    .map_or(false, |path| {
+                                        crate::common::is_peer_path_allowed(path, false)
+                                    });
+                                if !allowed {
+                                    log::warn!(
+                                        "Reject rename destination outside the app workspace: {:?}",
+                                        destination
+                                    );
+                                    self.send(fs::new_error(r.id, "Permission denied", -1))
+                                        .await;
+                                    return true;
+                                }
                             }
                         }
                         match fa.union {

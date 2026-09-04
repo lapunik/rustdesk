@@ -2197,6 +2197,15 @@ pub fn cm_close_connection(conn_id: i32) {
     crate::ui_cm_interface::close(conn_id);
 }
 
+/// The CM window closed. On Linux that is ambiguous - a logout closes it the same way a person
+/// does - so it ends the session without the no-retry reason; elsewhere it is a plain close.
+pub fn cm_close_connection_window(conn_id: i32) {
+    #[cfg(target_os = "linux")]
+    crate::ui_cm_interface::close_window(conn_id);
+    #[cfg(all(not(target_os = "linux"), not(target_os = "ios")))]
+    crate::ui_cm_interface::close(conn_id);
+}
+
 pub fn cm_remove_disconnected_connection(conn_id: i32) {
     #[cfg(not(any(target_os = "ios")))]
     crate::ui_cm_interface::remove(conn_id);
@@ -2903,12 +2912,16 @@ pub mod server_side {
         env: JNIEnv,
         _class: JClass,
         app_dir: JString,
+        home_dir: JString,
         custom_client_config: JString,
     ) {
         log::debug!("startServer from jvm");
         let mut env = env;
         if let Ok(app_dir) = env.get_string(&app_dir) {
             *config::APP_DIR.write().unwrap() = app_dir.into();
+        }
+        if let Ok(home_dir) = env.get_string(&home_dir) {
+            *config::APP_HOME_DIR.write().unwrap() = home_dir.into();
         }
         if let Ok(custom_client_config) = env.get_string(&custom_client_config) {
             if !custom_client_config.is_empty() {
