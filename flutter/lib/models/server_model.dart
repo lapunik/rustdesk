@@ -724,9 +724,8 @@ class ServerModel with ChangeNotifier {
   /// peers to go. The sessions end either way; only the close reason differs, and with it
   /// whether the peer is allowed to reconnect. See `ipc::Data::CmWindowClosed`.
   Future<void> closeAll({bool byOperator = true}) async {
-    await Future.wait(_clients.map((client) => byOperator
-        ? bind.cmCloseConnection(connId: client.id)
-        : bind.cmCloseConnectionWindow(connId: client.id)));
+    await Future.wait(_clients.map((client) =>
+        bind.cmCloseConnection(connId: client.id)));
     _clients.clear();
     tabController.state.value.tabs.clear();
     if (isAndroid) androidUpdatekeepScreenOn();
