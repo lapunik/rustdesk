@@ -1356,7 +1356,7 @@ impl AudioHandler {
         log::info!("Remote input format: {:?}", format0);
         #[allow(unused_mut)]
         let mut config: StreamConfig = config.into();
-        #[cfg(not(target_os = "ios"))]
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
         {
             // this makes ios audio output not work
             config.buffer_size = cpal::BufferSize::Fixed(64);
@@ -1402,7 +1402,9 @@ impl AudioHandler {
                 let buffer = vec![0.; f.sample_rate as usize * f.channels as usize];
                 self.audio_decoder = Some((d, buffer));
                 self.channels = f.channels as _;
-                allow_err!(self.start_audio(f));
+                if let Err(err) = self.start_audio(f) {
+                    log::error!("Failed to start audio: {:#}", err);
+                }
             }
             Err(err) => {
                 log::error!("Failed to create audio decoder: {}", err);
