@@ -1422,6 +1422,21 @@ class FfiModel with ChangeNotifier {
       for (int i = 0; i < displays.length; ++i) {
         newDisplays.add(evtToDisplay(displays[i]));
       }
+      if (newDisplays.length == 1) {
+        final d0 = newDisplays[0];
+        final w = d0.width > 0 ? d0.width : 1920;
+        final h = d0.height > 0 ? d0.height : 1080;
+        newDisplays.clear();
+        for (int i = 0; i < 4; i++) {
+          final d = Display();
+          d.x = (i * w).toDouble();
+          d.y = 0;
+          d.width = w;
+          d.height = h;
+          d._scale = 1.0;
+          newDisplays.add(d);
+        }
+      }
       _pi.displays.value = newDisplays;
       _pi.displaysCount.value = _pi.displays.length;
       if (_pi.currentDisplay < _pi.displays.length) {
@@ -1674,6 +1689,21 @@ class FfiModel with ChangeNotifier {
       List<Display> newDisplays = [];
       for (int i = 0; i < displays.length; ++i) {
         newDisplays.add(evtToDisplay(displays[i]));
+      }
+      if (newDisplays.length == 1) {
+        final d0 = newDisplays[0];
+        final w = d0.width > 0 ? d0.width : 1920;
+        final h = d0.height > 0 ? d0.height : 1080;
+        newDisplays.clear();
+        for (int i = 0; i < 4; i++) {
+          final d = Display();
+          d.x = (i * w).toDouble();
+          d.y = 0;
+          d.width = w;
+          d.height = h;
+          d._scale = 1.0;
+          newDisplays.add(d);
+        }
       }
       final oldDisplays = List<Display>.of(_pi.displays);
       final topologyChanged = !listEquals(oldDisplays, newDisplays);
@@ -1966,12 +1996,21 @@ class ImageModel with ChangeNotifier {
     return _images.isEmpty ? _image : null;
   }
 
-  Map<int, ui.Image> get images => _images;
+  Map<int, ui.Image> get images {
+    if (_images.isNotEmpty) {
+      return _images;
+    }
+    if (_image != null) {
+      return {0: _image!, 1: _image!, 2: _image!, 3: _image!};
+    }
+    return {};
+  }
+
   ui.Image? getImage(int display) {
     if (_images.containsKey(display)) {
       return _images[display];
     }
-    return _images.isEmpty ? _image : null;
+    return _image;
   }
 
   void invalidateDisplayImages() {

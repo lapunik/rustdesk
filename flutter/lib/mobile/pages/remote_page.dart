@@ -1248,6 +1248,36 @@ class MultiDisplaysImagePainter extends CustomPainter {
           canvas.drawImage(
               img, Offset(dx.toInt().toDouble(), dy.toInt().toDouble()), paint);
         }
+
+        final dw = display.width.toDouble();
+        final dh = display.height.toDouble();
+        final borderPaint = Paint()
+          ..color = const Color(0x99000000)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.0;
+        canvas.drawRect(Rect.fromLTWH(dx, dy, dw, dh), borderPaint);
+
+        final badgePaint = Paint()
+          ..color = const Color(0xDD202020)
+          ..style = PaintingStyle.fill;
+        final badgeRect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(dx + 20, dy + 20, 240, 50),
+          const Radius.circular(8),
+        );
+        canvas.drawRRect(badgeRect, badgePaint);
+
+        final textPainter = TextPainter(
+          text: TextSpan(
+            text: 'Display ${i + 1} (${display.width}x${display.height})',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        textPainter.paint(canvas, Offset(dx + 32, dy + 33));
       } catch (e) {
         // Ignore draw errors if the underlying ui.Image was disposed during frame transition.
       }
