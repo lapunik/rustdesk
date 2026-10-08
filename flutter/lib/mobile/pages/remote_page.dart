@@ -1379,6 +1379,7 @@ void showOptions(
         child: Wrap(
           alignment: WrapAlignment.center,
           spacing: 8,
+          runSpacing: 8,
           children: children,
         )));
   }
