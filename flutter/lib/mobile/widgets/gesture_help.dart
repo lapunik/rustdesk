@@ -65,6 +65,17 @@ class _GestureHelpState extends State<GestureHelp> {
     _selectedIndex = _touchMode ? 1 : 0;
   }
 
+  @override
+  void didUpdateWidget(covariant GestureHelp oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.touchMode != widget.touchMode) {
+      setState(() {
+        _touchMode = widget.touchMode;
+        _selectedIndex = _touchMode ? 1 : 0;
+      });
+    }
+  }
+
   /// Helper to exit relative mouse mode when certain conditions are met.
   /// This reduces code duplication across multiple UI callbacks.
   void _exitRelativeMouseModeIf(bool condition) {
@@ -271,6 +282,48 @@ class _GestureHelpState extends State<GestureHelp> {
                                       ),
                                     ],
                                   )),
+                            )),
+                      if (widget.inputModel != null)
+                        Obx(() => Transform.translate(
+                              offset: const Offset(-10.0, -6.0),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Checkbox(
+                                    value: widget.inputModel!
+                                        .enableHardwareTouchpad.value,
+                                    onChanged: (value) async {
+                                      if (value == null) return;
+                                      await widget.inputModel!
+                                          .setEnableHardwareTouchpad(value);
+                                      if (value && _touchMode) {
+                                        setState(() {
+                                          _selectedIndex = 0;
+                                          _touchMode = false;
+                                          widget.onTouchModeChange(false);
+                                        });
+                                      }
+                                    },
+                                  ),
+                                  InkWell(
+                                    onTap: () async {
+                                      final cur = widget.inputModel!
+                                          .enableHardwareTouchpad.value;
+                                      await widget.inputModel!
+                                          .setEnableHardwareTouchpad(!cur);
+                                      if (!cur && _touchMode) {
+                                        setState(() {
+                                          _selectedIndex = 0;
+                                          _touchMode = false;
+                                          widget.onTouchModeChange(false);
+                                        });
+                                      }
+                                    },
+                                    child: Text(
+                                        translate("Hardware touchpad")),
+                                  ),
+                                ],
+                              ),
                             )),
                     ],
                   ),

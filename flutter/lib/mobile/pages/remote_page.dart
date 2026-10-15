@@ -246,6 +246,8 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       if (gFFI.chatModel.chatWindowOverlayEntry == null &&
           gFFI.ffiModel.pi.version.isNotEmpty) {
         gFFI.invokeMethod("enable_soft_keyboard", false);
+        _mobileFocusNode.unfocus();
+        _physicalFocusNode.requestFocus();
       }
 
       // Workaround for iOS: physical keyboard input fails after virtual keyboard is hidden
@@ -255,9 +257,11 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
         _iosKeyboardWorkaroundTimer?.cancel();
         _iosKeyboardWorkaroundTimer = Timer(Duration(milliseconds: 100), () {
           if (!mounted) return;
+          if (gFFI.chatModel.chatWindowOverlayEntry != null) return;
           _physicalFocusNode.unfocus();
           _iosKeyboardWorkaroundTimer = Timer(Duration(milliseconds: 50), () {
             if (!mounted) return;
+            if (gFFI.chatModel.chatWindowOverlayEntry != null) return;
             _physicalFocusNode.requestFocus();
           });
         });
@@ -520,12 +524,10 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
                               }
                               return Container(
                                 color: MyTheme.canvasColor,
-                                child: inputModel.isPhysicalMouse.value
-                                    ? getBodyForMobile()
-                                    : RawTouchGestureDetectorRegion(
-                                        child: getBodyForMobile(),
-                                        ffi: gFFI,
-                                      ),
+                                child: RawTouchGestureDetectorRegion(
+                                  child: getBodyForMobile(),
+                                  ffi: gFFI,
+                                ),
                               );
                             }),
                           ),
@@ -544,6 +546,7 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
       inputModel: inputModel,
       onPointerDown: (_) {
         if (!keyboardVisibilityController.isVisible &&
+            gFFI.chatModel.chatWindowOverlayEntry == null &&
             !_mobileFocusNode.hasFocus &&
             !_physicalFocusNode.hasFocus) {
           _physicalFocusNode.requestFocus();
@@ -896,9 +899,10 @@ class _RemotePageState extends State<RemotePage> with WidgetsBindingObserver {
             child: GestureHelp(
               touchMode: gFFI.ffiModel.touchMode,
               onTouchModeChange: (t) {
-                gFFI.ffiModel.toggleTouchMode();
-                final v = gFFI.ffiModel.touchMode ? 'Y' : 'N';
+                gFFI.ffiModel.setTouchMode(t);
+                final v = t ? 'Y' : 'N';
                 bind.mainSetLocalOption(key: kOptionTouchMode, value: v);
+                setState(() {});
               },
               virtualMouseMode: gFFI.ffiModel.virtualMouseMode,
               inputModel: gFFI.inputModel,
@@ -1248,7 +1252,6 @@ class MultiDisplaysImagePainter extends CustomPainter {
           canvas.drawImage(
               img, Offset(dx.toInt().toDouble(), dy.toInt().toDouble()), paint);
         }
-
         final dw = display.width.toDouble();
         final dh = display.height.toDouble();
         final borderPaint = Paint()
