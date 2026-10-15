@@ -1376,7 +1376,7 @@ class FfiModel with ChangeNotifier {
     if (bind.peerGetSessionsCount(
             id: peerId, connType: parent.target!.connType.index) <=
         1) {
-      _pi.currentDisplay = currentDisplay;
+      _pi.currentDisplay = kAllDisplayValue;
     }
 
     try {
@@ -1997,20 +1997,20 @@ class ImageModel with ChangeNotifier {
   }
 
   Map<int, ui.Image> get images {
-    if (_images.isNotEmpty) {
-      return _images;
+    final baseImg = (_images.isNotEmpty ? _images.values.first : null) ?? _image;
+    if (baseImg != null) {
+      return {
+        0: _images[0] ?? baseImg,
+        1: _images[1] ?? baseImg,
+        2: _images[2] ?? baseImg,
+        3: _images[3] ?? baseImg,
+      };
     }
-    if (_image != null) {
-      return {0: _image!, 1: _image!, 2: _image!, 3: _image!};
-    }
-    return {};
+    return _images;
   }
 
   ui.Image? getImage(int display) {
-    if (_images.containsKey(display)) {
-      return _images[display];
-    }
-    return _image;
+    return _images[display] ?? (_images.isNotEmpty ? _images.values.first : null) ?? _image;
   }
 
   void invalidateDisplayImages() {

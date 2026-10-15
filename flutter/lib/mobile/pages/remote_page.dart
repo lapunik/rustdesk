@@ -1252,16 +1252,16 @@ class MultiDisplaysImagePainter extends CustomPainter {
         final dw = display.width.toDouble();
         final dh = display.height.toDouble();
         final borderPaint = Paint()
-          ..color = const Color(0x99000000)
+          ..color = const Color(0xFF00ADB5)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 3.0;
+          ..strokeWidth = 4.0;
         canvas.drawRect(Rect.fromLTWH(dx, dy, dw, dh), borderPaint);
 
         final badgePaint = Paint()
-          ..color = const Color(0xDD202020)
+          ..color = const Color(0xEE1A1A2E)
           ..style = PaintingStyle.fill;
         final badgeRect = RRect.fromRectAndRadius(
-          Rect.fromLTWH(dx + 20, dy + 20, 240, 50),
+          Rect.fromLTWH(dx + 20, dy + 20, 320, 60),
           const Radius.circular(8),
         );
         canvas.drawRRect(badgeRect, badgePaint);
@@ -1271,7 +1271,7 @@ class MultiDisplaysImagePainter extends CustomPainter {
             text: 'Display ${i + 1} (${display.width}x${display.height})',
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 20,
+              fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
           ),
