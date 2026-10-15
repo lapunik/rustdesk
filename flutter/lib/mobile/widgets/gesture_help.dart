@@ -283,7 +283,7 @@ class _GestureHelpState extends State<GestureHelp> {
                                     ],
                                   )),
                             )),
-                      if (!_touchMode && widget.inputModel != null)
+                      if (widget.inputModel != null)
                         Obx(() => Transform.translate(
                               offset: const Offset(-10.0, -6.0),
                               child: Row(
@@ -296,6 +296,13 @@ class _GestureHelpState extends State<GestureHelp> {
                                       if (value == null) return;
                                       await widget.inputModel!
                                           .setEnableHardwareTouchpad(value);
+                                      if (value && _touchMode) {
+                                        setState(() {
+                                          _selectedIndex = 0;
+                                          _touchMode = false;
+                                          widget.onTouchModeChange(false);
+                                        });
+                                      }
                                     },
                                   ),
                                   InkWell(
@@ -304,6 +311,13 @@ class _GestureHelpState extends State<GestureHelp> {
                                           .enableHardwareTouchpad.value;
                                       await widget.inputModel!
                                           .setEnableHardwareTouchpad(!cur);
+                                      if (!cur && _touchMode) {
+                                        setState(() {
+                                          _selectedIndex = 0;
+                                          _touchMode = false;
+                                          widget.onTouchModeChange(false);
+                                        });
+                                      }
                                     },
                                     child: Text(
                                         translate("Hardware touchpad")),
